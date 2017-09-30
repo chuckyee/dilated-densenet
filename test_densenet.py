@@ -47,11 +47,28 @@ class TestDenseNet(unittest.TestCase):
         self.assertTrue(torch.equal(y[0,1].data, b))
 
     def test_densenet(self):
-        model = densenet.DenseNet(image_channels=1, num_init_features=12,
-                                  growth_rate=12, layers=3)
-        # print(model)
-        # print(dir(model))
-        # print(model.initial_conv)
-        # print(model.features)
-        # print(dir(model.initial_conv))
+        model = densenet.DilatedDenseNet(image_channels=1, num_init_features=1,
+                                         growth_rate=1, layers=3, dilated=True)
 
+        # input feature map
+        image = [
+            [1,  0, 1, 0],
+            [0, -1, 1, 0],
+            [1,  0, 2, 1],
+            [1, -1, 1, 1],
+        ]
+        x = Variable(torch.Tensor([[image]]))
+
+        layer = model.features.denselayer02
+        layer.norm.weight.data[0] = 1
+        layer.norm.bias.data[0] = 0
+        kernel = torch.Tensor([
+            [0, 0, 0],
+            [0, 1, 0],
+            [0, 0, 0],
+        ])
+        layer.conv.weight.data[0,0,:,:] = kernel
+        y = model(x)
+
+        print(model)
+        print(y)

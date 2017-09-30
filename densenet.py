@@ -1,17 +1,18 @@
 import torch
-import torch.nn as nn
+from torch import nn
 import torch.nn.functional as F
 
 from collections import OrderedDict
 
 class _DenseLayer(nn.Sequential):
-    def __init__(self, in_features, growth_rate, dropout_rate=0):
+    def __init__(self, in_features, growth_rate, dropout_rate=0, dilation=1):
         super(_DenseLayer, self).__init__()
         self.add_module('norm', nn.BatchNorm2d(in_features))
         self.add_module('relu', nn.ReLU(inplace=True))
         self.add_module('conv', nn.Conv2d(in_features, growth_rate,
-                                          kernel_size=3, stride=1, padding=1,
-                                          bias=False))
+                                          kernel_size=3, stride=1,
+                                          padding=dilation,
+                                          dilation=dilation, bias=False))
         self.dropout_rate = dropout_rate
 
     def forward(self, x):
@@ -21,10 +22,10 @@ class _DenseLayer(nn.Sequential):
                                  training=self.training)
         return torch.cat([x, features], dim=1)
 
-class DenseNet(nn.Module):
+class DilatedDenseNet(nn.Module):
     def __init__(self, image_channels=1, num_init_features=12, growth_rate=12,
-                 layers=8, dropout_rate=0, classes=2):
-        super(DenseNet, self).__init__()
+                 layers=8, dropout_rate=0, classes=2, dilated=True):
+        super(DilatedDenseNet, self).__init__()
 
         self.classes = classes
 
@@ -34,19 +35,20 @@ class DenseNet(nn.Module):
 
         self.features = nn.Sequential(OrderedDict([]))
         nfeatures = 1 + num_init_features
+        dilation = 1
         for n in range(layers):
             name = "denselayer{:02d}".format(n)
-            layer = _DenseLayer(nfeatures, growth_rate, dropout_rate)
+            layer = _DenseLayer(nfeatures, growth_rate, dropout_rate, dilation)
             self.features.add_module(name, layer)
             nfeatures += growth_rate
+            if dilated:
+                dilation *= 2
 
         self.logits = nn.Conv2d(in_channels=nfeatures,
                                 out_channels=self.classes,
                                 kernel_size=1)
-        self.softmax = nn.Softmax()
 
     def forward(self, x):
         out = self.initial_conv(x)
-        out = self.features(torch.cat([out, x], dim=1))
-        out = self.softmax(self.logits(out))
-        return out
+        out = self.features(torch.cat([x, out], dim=1))
+        return self.logits(out)
