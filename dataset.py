@@ -19,7 +19,7 @@ class RVSC(Dataset):
     r"""Right ventricle segmentation challenge dataset.
     """
     def __init__(self, root, image_transform=None, mask_transform=None,
-                 dtype='float32'):
+                 image_dtype='float32', mask_dtype='int64'):
         self.images_root = os.path.join(root, 'images')
         self.masks_root  = os.path.join(root, 'masks')
 
@@ -30,15 +30,16 @@ class RVSC(Dataset):
         self.image_transform = image_transform
         self.mask_transform  = mask_transform
 
-        self.dtype = dtype
+        self.image_dtype = image_dtype
+        self.mask_dtype  = mask_dtype
 
     def __getitem__(self, index):
         filename = self.filenames[index] + '.png'
 
         with open(os.path.join(self.images_root, filename), 'rb') as f:
-            image = np.asarray(Image.open(f), dtype=self.dtype)
+            image = np.asarray(Image.open(f), dtype=self.image_dtype)[None,:,:]
         with open(os.path.join(self.masks_root, filename), 'rb') as f:
-            mask = np.asarray(Image.open(f), dtype=self.dtype)
+            mask = np.asarray(Image.open(f), dtype=self.mask_dtype)
 
         if self.image_transform:
             image = self.image_transform(image)
