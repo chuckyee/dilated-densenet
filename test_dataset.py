@@ -14,7 +14,7 @@ class TestDataset(unittest.TestCase):
             self.assertTupleEqual(image.shape, (216, 256, 1))
             self.assertTupleEqual(mask.shape, (216, 256))
             self.assertEqual(image.dtype, 'float32')
-            self.assertEqual(mask.dtype, 'int32')
+            self.assertEqual(mask.dtype, 'int64')
 
     def test_transform(self):
         def epsilon(x):
