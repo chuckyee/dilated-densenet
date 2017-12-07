@@ -13,8 +13,9 @@ from torch.autograd import Variable
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
+from torchvision import transforms
 
-from dataset import RVSC, normalize
+from dataset import SegmentationDataset, normalize
 from densenet import DilatedDenseNet
 from loss import CrossEntropyLoss2d
 
@@ -98,9 +99,12 @@ def train_val_dataloaders(dataset, val_split=0.2, batch_size=32, seed=0):
 def main(args):
     logging.info("Construct dataset...")
 
-    input_transform = normalize
+    input_transform = transforms.Compose([
+        normalize,
+        transforms.ToTensor(),
+    ])
     output_transform = None
-    dataset = RVSC(args.datadir, input_transform, output_transform)
+    dataset = SegmentationDataset(args.datadir, input_transform, output_transform)
 
     # extract number of channels in input images / number of classes
     image, mask = dataset[0]
