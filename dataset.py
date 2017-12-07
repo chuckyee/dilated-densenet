@@ -31,7 +31,7 @@ class SegmentationDataset(Dataset):
     extensions = ('.png', '.jpg', '.jpeg')
 
     def __init__(self, root, image_transform=None, mask_transform=None,
-                 image_dtype='float32', mask_dtype='int32'):
+                 image_dtype='float32', mask_dtype='int64'):
         self.images_root = os.path.join(root, 'images')
         self.masks_root  = os.path.join(root, 'masks')
 
@@ -55,6 +55,10 @@ class SegmentationDataset(Dataset):
         
         image = np.asarray(Image.open(filepath), dtype=self.image_dtype)
         mask = np.asarray(Image.open(maskpath), dtype=self.mask_dtype)
+
+        # add channel dimension if grayscale
+        if image.ndim == 2:
+            image = image[:,:,None]
 
         if self.image_transform:
             image = self.image_transform(image)

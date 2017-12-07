@@ -11,7 +11,7 @@ class TestDataset(unittest.TestCase):
 
         for i in range(3):
             image, mask = d[i]
-            self.assertTupleEqual(image.shape, (216, 256))
+            self.assertTupleEqual(image.shape, (216, 256, 1))
             self.assertTupleEqual(mask.shape, (216, 256))
             self.assertEqual(image.dtype, 'float32')
             self.assertEqual(mask.dtype, 'int32')
@@ -30,7 +30,7 @@ class TestDataset(unittest.TestCase):
 
         for i in range(3):
             image, mask = d[i]
-            self.assertTupleEqual(image.shape, (216, 256))
+            self.assertTupleEqual(image.shape, (216, 256, 1))
             self.assertEqual(image.dtype, 'float64')
             self.assertEqual(mask, 'epsilon')
 
