@@ -15,7 +15,7 @@ class CrossEntropyLoss2d(nn.Module):
         >>> output.backward()
     """
     def __init__(self, weight=None, size_average=True, ignore_index=-100):
-        super().__init__()
+        super(CrossEntropyLoss2d, self).__init__()
         self.loss = nn.NLLLoss2d(weight, size_average=size_average,
                                  ignore_index=ignore_index)
 
@@ -28,7 +28,7 @@ class SoftDice2d(nn.Module):
     score.
     """
     def __init__(self, weight=None):
-        super().__init__()
+        super(SoftDice2d, self).__init__()
         self.loss = None        # TODO
 
     def forward(self, outputs, targets):

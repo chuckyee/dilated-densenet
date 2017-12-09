@@ -27,7 +27,7 @@ def train_epoch(epoch, args, model, loader, criterion, optimizer):
     sizes = []
 
     for step, (images,masks) in enumerate(loader):
-        if args.cuda:
+        if args.ngpu > 0:
             images = images.cuda()
             masks = masks.cuda()
 
@@ -43,13 +43,14 @@ def train_epoch(epoch, args, model, loader, criterion, optimizer):
         losses.append(loss.data[0])
         sizes.append(len(images))
 
-        logging.info(f"Epoch: {epoch}  Batch: {step}  Loss: {loss.data[0]}")
+        logging.info("Epoch: {}  Batch: {}  Loss: {}".format(
+            epoch, step, loss.data[0]))
 
     total_loss = sum(n*x for n,x in zip(sizes, losses)) / sum(sizes)
-    logging.info(f"Epoch: {epoch}  Loss: {total_loss}")
+    logging.info("Epoch: {}  Loss: {}".format(epoch, total_loss))
 
     if args.checkpoint:
-        save_path = f'tensors-{epoch:03d}.pt'
+        save_path = 'tensors-{:03d}.pt'.format(epoch)
         torch.save(model.state_dict(), save_path)
 
 
@@ -60,7 +61,7 @@ def evaluate(args, model, loader, criterion):
     sizes = []
 
     for step, (images,masks) in enumerate(loader):
-        if args.cuda:
+        if args.ngpu > 0:
             images = images.cuda()
             masks = masks.cuda()
 
@@ -72,10 +73,10 @@ def evaluate(args, model, loader, criterion):
         losses.append(loss)
         sizes.append(len(images))
 
-        logging.info(f"Batch: {step}  Loss: {loss}")
+        logging.info("Batch: {}  Loss: {}".format(step, loss))
 
     total_loss = sum(n*x for n,x in zip(sizes, losses)) / sum(sizes)
-    logging.info(f"Loss: {loss}")
+    logging.info("Loss: {}".format(loss))
 
 
 def train_val_dataloaders(dataset, val_split=0.2, batch_size=32, seed=0):
@@ -121,12 +122,13 @@ def main(args):
         classes=args.classes,
         dilated=True)
 
-    if args.cuda:
+    if args.ngpu > 0:
+        model = nn.DataParallel(model, device_ids=list(range(args.ngpu)))
         model = model.cuda()
 
     # setup cross entropy loss
     weight = torch.ones(2)
-    if args.cuda:
+    if args.ngpu > 0:
         weight = weight.cuda()
     criterion = CrossEntropyLoss2d(weight)
 
@@ -150,7 +152,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cuda', action='store_true')
+    parser.add_argument('--ngpu', type=int, default=0)
     parser.add_argument('--datadir', default='.')
     parser.add_argument('--logging', default='INFO')
     parser.add_argument('--batch-size', type=int, default=32)
@@ -176,7 +178,7 @@ if __name__ == '__main__':
     # setup logging level
     numeric_level = getattr(logging, args.logging.upper(), None)
     if not isinstance(numeric_level, int):
-        raise ValueError(f'Invalid log level: {args.log}')
+        raise ValueError('Invalid log level: {}'.format(args.log))
     logging.basicConfig(level=numeric_level)
 
     main(args)

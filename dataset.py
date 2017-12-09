@@ -35,7 +35,7 @@ class SegmentationDataset(Dataset):
         self.images_root = os.path.join(root, 'images')
         self.masks_root  = os.path.join(root, 'masks')
 
-        self.filenames = [f for f in os.listdir(self.masks_root) if
+        self.filenames = [f for f in os.listdir(self.images_root) if
                           f.endswith(SegmentationDataset.extensions)]
         self.filenames.sort()
 
