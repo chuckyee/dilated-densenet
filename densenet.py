@@ -52,3 +52,11 @@ class DilatedDenseNet(nn.Module):
         out = self.initial_conv(x)
         out = self.features(torch.cat([x, out], dim=1))
         return self.logits(out)
+
+    def num_trainable_parameters(self):
+        def prod(a):
+            total = 1
+            for x in a:
+                total *= x
+            return total
+        return sum(prod(p.size()) for p in self.parameters() if p.requires_grad)

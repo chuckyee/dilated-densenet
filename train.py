@@ -132,6 +132,10 @@ def main(args):
         classes=args.classes,
         dilated=True)
 
+    logging.info("Number of trainable parameters: {}".format(
+        model.num_trainable_parameters()))
+    logging.info(str(model))
+
     if args.ngpu > 0:
         model = nn.DataParallel(model, device_ids=list(range(args.ngpu)))
         model = model.cuda()
@@ -229,7 +233,7 @@ if __name__ == '__main__':
     logging.info("Using {} GPUs.".format(ngpus))
 
     # default validation batch size to training batch size
-    if args.val_batch_size < 0:
+    if args.mode == 'train' and args.val_batch_size < 0:
         args.val_batch_size = args.batch_size
 
     main(args)
