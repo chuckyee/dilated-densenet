@@ -13,7 +13,7 @@ from torch.autograd import Variable
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from torchvision import transforms
+from torchvision import transforms, utils
 
 from dataset import SegmentationDataset, normalize
 from densenet import DilatedDenseNet
@@ -49,12 +49,12 @@ def train_epoch(epoch, args, model, loader, criterion, optimizer):
     total_loss = sum(n*x for n,x in zip(sizes, losses)) / sum(sizes)
     logging.info("Epoch: {}  Loss: {}".format(epoch, total_loss))
 
-    if args.checkpoint:
+    if args.checkpoint > 0 and epoch % args.checkpoint == 0:
         save_path = 'tensors-{:03d}.pt'.format(epoch)
         torch.save(model.state_dict(), save_path)
 
 
-def evaluate(args, model, loader, criterion):
+def evaluate(args, model, loader, criterion, save=False):
     model.eval()
 
     losses = []
@@ -74,6 +74,12 @@ def evaluate(args, model, loader, criterion):
         sizes.append(len(images))
 
         logging.info("Batch: {}  Loss: {}".format(step, loss))
+
+        if save:
+            utils.save_image(images.cpu(), "images-{:03d}.png".format(step),
+                             normalize=True)
+            utils.save_image(y_pred.data[:,1,:,:][:,None,:,:].cpu(),
+                             "masks-{:03d}.png".format(step), normalize=True)
 
     total_loss = sum(n*x for n,x in zip(sizes, losses)) / sum(sizes)
     logging.info("Loss: {}".format(loss))
@@ -134,6 +140,9 @@ def main(args):
 
     optimizer = Adam(model.parameters())
 
+    if args.infile:
+        model.load_state_dict(torch.load(args.infile))
+
     if args.mode == 'train':
         train_loader, val_loader = train_val_dataloaders(
             dataset, args.val_split, args.batch_size, args.seed)
@@ -142,36 +151,58 @@ def main(args):
 
         for epoch in range(args.start_epoch, args.num_epochs + 1):
             train_epoch(epoch, args, model, train_loader, criterion, optimizer)
-            evaluate(args, model, val_loader, criterion)
+            if args.val_split > 0:
+                evaluate(args, model, val_loader, criterion)
+
+        torch.save(model.cpu().state_dict(), args.outfile)
 
     if args.mode == 'eval':
         logging.info("Begin model evaluation...")
         loader = DataLoader(dataset, batch_size=args.batch_size)
-        evaluate(args, model, loader, criterion)
+        evaluate(args, model, loader, criterion, save=args.save_images)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ngpu', type=int, default=0)
-    parser.add_argument('--datadir', default='.')
-    parser.add_argument('--logging', default='INFO')
-    parser.add_argument('--batch-size', type=int, default=32)
-    parser.add_argument('--features', type=int, default=12)
-    parser.add_argument('--layers', type=int, default=8)
-    parser.add_argument('--dropout', type=float, default=0.0)
-    parser.add_argument('--classes', type=int, default=2)
+    parser.add_argument('--ngpu', type=int, default=-1,
+        help="Number of GPUs to use; 0 for CPU")
+    parser.add_argument('--datadir', default='.',
+        help="Data directory containing images/ and masks/ subdirectories.")
+    parser.add_argument('--logging', default='INFO',
+        help="Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL")
+    parser.add_argument('--batch-size', type=int, default=32,
+        help="Training batch size")
+    parser.add_argument('--features', type=int, default=12,
+        help="DenseNet growth rate")
+    parser.add_argument('--layers', type=int, default=8,
+        help="Depth of DenseNet")
+    parser.add_argument('--dropout', type=float, default=0.0,
+        help="Dropout probability, 0 to turn off")
+    parser.add_argument('--classes', type=int, default=2,
+        help="Number of classes in segmentation mask")
+    parser.add_argument('--infile', default='',
+        help="File for initial model weights")
+    parser.add_argument('--outfile', default='tensors-final.pt',
+        help="File to save final model weights")
 
     subparsers = parser.add_subparsers(dest='mode')
     subparsers.required = True
 
     parser_train = subparsers.add_parser('train')
-    parser_train.add_argument('--start-epoch', type=int, default=1)
-    parser_train.add_argument('--num-epochs', type=int, default=100)
-    parser_train.add_argument('--seed', type=int, default=0)
-    parser_train.add_argument('--val-split', type=float, default=0.2)
-    parser_train.add_argument('--checkpoint', action='store_true')
+    parser_train.add_argument('--seed', type=int, default=0,
+        help="Random seed determining train-val split; keep SAME across runs")
+    parser_train.add_argument('--num-epochs', type=int, default=100,
+        help="Total epochs to train")
+    parser_train.add_argument('--val-split', type=float, default=0.2,
+        help="Train-validation split; 0 to train on all data")
+    parser_train.add_argument('--checkpoint', type=int, default=0,
+        help="Interval to write model weights (in epochs); 0 to disable")
+    parser_train.add_argument('--start-epoch', type=int, default=1,
+        help="Offset for epoch numbering; for restarting training")
 
     parser_eval = subparsers.add_parser('eval')
+    parser_eval.add_argument('--save-images', action='store_true',
+        help="Write predicted masks to file")
 
     args = parser.parse_args()
 
@@ -180,5 +211,15 @@ if __name__ == '__main__':
     if not isinstance(numeric_level, int):
         raise ValueError('Invalid log level: {}'.format(args.log))
     logging.basicConfig(level=numeric_level)
+
+    # automatically set GPU usage
+    ngpus = torch.cuda.device_count()
+    if args.ngpu < 0:
+        args.ngpu = ngpus
+    elif args.ngpu > ngpus:
+        logging.warning("System only has {} GPUs; {} specified.".format(
+            ngpus, args.ngpu))
+        args.ngpu = ngpus
+    logging.info("Using {} GPUs.".format(ngpus))
 
     main(args)
