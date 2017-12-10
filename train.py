@@ -20,6 +20,24 @@ from densenet import DilatedDenseNet
 from loss import CrossEntropyLoss2d
 
 
+def train_val_dataloaders(dataset, val_split=0.2, train_batch_size=32, val_batch_size=1, seed=0):
+    np.random.seed(seed)   # crucial: controls train-val split
+
+    ntotal = len(dataset)
+    ntrain = int((1 - val_split) * len(dataset))
+
+    train_indices = np.random.choice(ntotal, ntrain, replace=False)
+    train_sampler = SubsetRandomSampler(train_indices)
+
+    val_indices = np.setdiff1d(np.arange(ntotal), train_indices, assume_unique=True)
+    val_sampler = SubsetRandomSampler(val_indices)
+
+    train_loader = DataLoader(dataset, batch_size=train_batch_size, sampler=train_sampler)
+    val_loader = DataLoader(dataset, batch_size=val_batch_size, sampler=val_sampler)
+
+    return train_loader, val_loader
+
+
 def train_epoch(epoch, args, model, loader, criterion, optimizer):
     model.train()
 
@@ -85,25 +103,11 @@ def evaluate(args, model, loader, criterion, save=False):
     logging.info("Loss: {}".format(loss))
 
 
-def train_val_dataloaders(dataset, val_split=0.2, batch_size=32, seed=0):
-    np.random.seed(seed)   # crucial: controls train-val split
-
-    ntotal = len(dataset)
-    ntrain = int((1 - val_split) * len(dataset))
-
-    train_indices = np.random.choice(ntotal, ntrain, replace=False)
-    train_sampler = SubsetRandomSampler(train_indices)
-
-    val_indices = np.setdiff1d(np.arange(ntotal), train_indices, assume_unique=True)
-    val_sampler = SubsetRandomSampler(val_indices)
-
-    train_loader = DataLoader(dataset, batch_size=batch_size, sampler=train_sampler)
-    val_loader = DataLoader(dataset, batch_size=batch_size, sampler=val_sampler)
-
-    return train_loader, val_loader
-
-
 def main(args):
+    logging.info("Arguments for execution:")
+    for k,v in vars(args).items():
+        logging.info("{} = {}".format(k, v))
+
     logging.info("Construct dataset...")
 
     input_transform = transforms.Compose([
@@ -144,8 +148,8 @@ def main(args):
         model.load_state_dict(torch.load(args.infile))
 
     if args.mode == 'train':
-        train_loader, val_loader = train_val_dataloaders(
-            dataset, args.val_split, args.batch_size, args.seed)
+        train_loader, val_loader = train_val_dataloaders(dataset,
+            args.val_split, args.batch_size, args.val_batch_size, args.seed)
 
         logging.info("Begin training...")
 
@@ -199,6 +203,8 @@ if __name__ == '__main__':
         help="Interval to write model weights (in epochs); 0 to disable")
     parser_train.add_argument('--start-epoch', type=int, default=1,
         help="Offset for epoch numbering; for restarting training")
+    parser_train.add_argument('--val-batch-size', type=int, default=-1,
+        help="Batch size for validation at end of each epoch")
 
     parser_eval = subparsers.add_parser('eval')
     parser_eval.add_argument('--save-images', action='store_true',
@@ -221,5 +227,9 @@ if __name__ == '__main__':
             ngpus, args.ngpu))
         args.ngpu = ngpus
     logging.info("Using {} GPUs.".format(ngpus))
+
+    # default validation batch size to training batch size
+    if args.val_batch_size < 0:
+        args.val_batch_size = args.batch_size
 
     main(args)
