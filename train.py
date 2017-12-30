@@ -53,7 +53,7 @@ def train_epoch(epoch, args, model, loader, criterion, optimizer):
         y_true = Variable(masks)
         y_pred = model(x)
 
-        optimizer.zero_grad()   # do I also need to zero the model gradients?
+        optimizer.zero_grad()
         loss = criterion(y_pred, y_true)
         loss.backward()
         optimizer.step()
@@ -78,6 +78,13 @@ def evaluate(args, model, loader, criterion, save=False):
     losses = []
     sizes = []
 
+    if save:
+        softmax = nn.Softmax(dim=1)
+        if args.ngpu > 0:
+            softmax = nn.DataParallel(
+                softmax, device_ids=list(range(args.ngpu)))
+            softmax = softmax.cuda()
+
     for step, (images,masks) in enumerate(loader):
         if args.ngpu > 0:
             images = images.cuda()
@@ -96,8 +103,9 @@ def evaluate(args, model, loader, criterion, save=False):
         if save:
             utils.save_image(images.cpu(), "images-{:03d}.png".format(step),
                              normalize=True)
-            utils.save_image(y_pred.data[:,1,:,:][:,None,:,:].cpu(),
-                             "masks-{:03d}.png".format(step), normalize=True)
+            masks_pred = softmax(y_pred)[:,[1],:,:].data.cpu()
+            utils.save_image(masks_pred, "masks-{:03d}.png".format(step),
+                             normalize=True)
 
     total_loss = sum(n*x for n,x in zip(sizes, losses)) / sum(sizes)
     logging.info("Loss: {}".format(loss))
@@ -130,7 +138,9 @@ def main(args):
         layers=args.layers,
         dropout_rate=args.dropout,
         classes=args.classes,
-        dilated=True)
+        dilated=True,
+        bias=True
+    )
 
     logging.info("Number of trainable parameters: {}".format(
         model.num_trainable_parameters()))

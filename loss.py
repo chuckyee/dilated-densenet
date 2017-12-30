@@ -20,7 +20,7 @@ class CrossEntropyLoss2d(nn.Module):
                                  ignore_index=ignore_index)
 
     def forward(self, outputs, targets):
-        return self.loss(F.log_softmax(outputs), targets)
+        return self.loss(F.log_softmax(outputs, dim=1), targets)
 
 
 class SoftDice2d(nn.Module):
